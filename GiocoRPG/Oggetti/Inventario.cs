@@ -3,21 +3,16 @@
 // ═══════════════════════════════════════════════════════════════════
 // GIORNO 5: usava List<IOggetto>.
 // GIORNO 6: refactoring a Dictionary<string, (IOggetto, int)>.
+// GIORNO 7: aggiunta validazione con eccezioni personalizzate.
 //
 // Vantaggi del Dictionary rispetto alla List:
 //   - Ricerca per nome O(1) invece di O(n)
 //   - Quantità integrata nel valore — niente campi paralleli
 //   - TryGetValue sicuro: nessuna eccezione per chiavi mancanti
 //   - Aggiungere lo stesso oggetto due volte somma la quantità
-//     invece di creare un duplicato
 //
 // La chiave è il Nome dell'oggetto (string).
 // Il valore è una tupla nominata: l'oggetto + la sua quantità.
-//
-// TUPLA NOMINATA (IOggetto Oggetto, int Quantita):
-//   Raggruppa due valori senza creare una classe separata.
-//   I nomi (Oggetto, Quantita) rendono il codice leggibile:
-//   entry.Oggetto e entry.Quantita invece di entry.Item1 e entry.Item2.
 // ═══════════════════════════════════════════════════════════════════
 
 namespace GiocoRPG.Oggetti
@@ -25,41 +20,40 @@ namespace GiocoRPG.Oggetti
     public class Inventario : IEnumerable<IOggetto>, ISalvabile
     {
         // Dictionary: chiave = Nome oggetto, valore = (oggetto, quantità).
-        // readonly: il Dictionary stesso non può essere sostituito dopo la creazione,
-        // ma il suo contenuto può essere modificato (Add, Remove...).
         private readonly Dictionary<string, (IOggetto Oggetto, int Quantita)> _oggetti = new();
 
-        private const int MAX_SLOT = 20 ;
+        // Limite massimo di slot. Aggiungi() lancia InventarioPienoException
+        // se viene superato.
+        private const int MAX_SLOT = 20;
 
-
-        // Proprietà calcolata: legge la dimensione del Dictionary.
         public int Count => _oggetti.Count;
 
 
         // ─────────────────────────────────────────────────────────────
         // AGGIUNGI
-        // TryGetValue cerca la chiave in O(1).
-        //   Se trovata (out var esistente): aggiorna solo la quantità.
-        //   Se non trovata: crea una nuova entry.
+        // Guard clause 1: ArgumentNullException.ThrowIfNull — C# 10+.
+        //   Equivale a: if (obj == null) throw new ArgumentNullException(nameof(obj));
         //
-        // _oggetti[obj.Nome] = ... sovrascrive il valore esistente —
-        // Dictionary non permette chiavi duplicate: assegnare sulla stessa
-        // chiave aggiorna il valore senza errori.
+        // Guard clause 2: InventarioPienoException se si supera MAX_SLOT.
+        //
+        // TryGetValue O(1): cerca la chiave senza scorrere tutto il Dictionary.
+        //   Se trovata: aggiorna la quantità mantenendo lo stesso oggetto.
+        //   Se non trovata: crea una nuova entry.
         // ─────────────────────────────────────────────────────────────
-        public void Aggiungi(IOggetto? obj, int quantita = 1) // .? = accedere al membro solo se l'oggetto non é null
+        public void Aggiungi(IOggetto? obj, int quantita = 1)
         {
             ArgumentNullException.ThrowIfNull(obj);
 
-            if (_oggetti.Count >= MAX_SLOT) throw new InventarioPienoException(MAX_SLOT);
+            if (_oggetti.Count >= MAX_SLOT)
+                throw new InventarioPienoException(MAX_SLOT);
+
             if (_oggetti.TryGetValue(obj.Nome, out var esistente))
             {
-                // Chiave trovata: aggiorna la quantità, mantieni lo stesso oggetto
                 _oggetti[obj.Nome] = (esistente.Oggetto, esistente.Quantita + quantita);
                 Console.WriteLine($"Oggetto aggiunto quantità: {quantita}");
             }
             else
             {
-                // Chiave assente: nuova entry con l'oggetto e la quantità iniziale
                 _oggetti[obj.Nome] = (obj, quantita);
                 Console.WriteLine($"Oggetto aggiunto quantità: {quantita}");
             }
@@ -70,19 +64,14 @@ namespace GiocoRPG.Oggetti
         // RIMUOVI
         // Scala la quantità o rimuove l'entry completamente.
         // Restituisce false se l'oggetto non esiste — nessuna eccezione.
-        //
-        // Se quantita richiesta >= quantita disponibile:
-        //   Remove(nome) elimina l'intera entry dal Dictionary.
-        // Altrimenti:
-        //   Aggiorna la tupla con la quantità ridotta.
         // ─────────────────────────────────────────────────────────────
         public bool Rimuovi(string nome, int quantita = 1)
         {
             if (!_oggetti.TryGetValue(nome, out var esistente))
-                return false;  // chiave non trovata: nessuna eccezione
+                return false;
 
             if (esistente.Quantita <= quantita)
-                _oggetti.Remove(nome);          // rimuove l'entry completamente
+                _oggetti.Remove(nome);
             else
                 _oggetti[nome] = (esistente.Oggetto, esistente.Quantita - quantita);
 
@@ -91,18 +80,22 @@ namespace GiocoRPG.Oggetti
 
 
         // ─────────────────────────────────────────────────────────────
-        // CERCA
-        // TryGetValue O(1): nessun ciclo, nessun confronto uno per uno.
-        // Trova() restituisce null se la chiave non esiste.
-        // GetQuantita() restituisce 0 se la chiave non esiste.
+        // TROVA — cerca per nome, lancia se non trovato
+        // A differenza di TryGetValue (che restituisce false se assente),
+        // questo metodo lancia OggettoNonTrovatoException.
+        // Scelta intenzionale: chi chiede un oggetto specifico
+        // si aspetta che ci sia — la sua assenza è un errore.
+        //
+        // ArgumentException.ThrowIfNullOrWhiteSpace — C# 10+.
+        //   Equivale a: if (string.IsNullOrWhiteSpace(nome)) throw ...
         // ─────────────────────────────────────────────────────────────
         public IOggetto Trova(string nome)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(nome);
-            if (!_oggetti.TryGetValue(nome, out var entry)) throw new OggettoNonTrovatoException(nome);
+            if (!_oggetti.TryGetValue(nome, out var entry))
+                throw new OggettoNonTrovatoException(nome);
             return entry.Oggetto;
         }
-        
 
         public int GetQuantita(string nome)
             => _oggetti.TryGetValue(nome, out var entry) ? entry.Quantita : 0;
@@ -112,8 +105,6 @@ namespace GiocoRPG.Oggetti
 
         // ─────────────────────────────────────────────────────────────
         // STATISTICHE — calcolate con foreach su _oggetti.Values
-        // .Values restituisce la collezione di tutte le tuple del Dictionary.
-        // Non produce una nuova lista: è una vista diretta sul contenuto.
         // ─────────────────────────────────────────────────────────────
         public int ValoreTotale()
         {
@@ -134,7 +125,6 @@ namespace GiocoRPG.Oggetti
 
         // ─────────────────────────────────────────────────────────────
         // MOSTRA
-        // ValoreTotale() viene chiamata UNA SOLA VOLTA, fuori dal foreach.
         // ─────────────────────────────────────────────────────────────
         public void Mostra()
         {
@@ -142,37 +132,35 @@ namespace GiocoRPG.Oggetti
 
             Console.WriteLine(" === INVENTARIO ===");
             foreach (var obj in _oggetti.Values)
-                Console.WriteLine($" [{obj.Oggetto.Tipo}] {obj.Oggetto.Nome} | {obj.Oggetto.Valore} | {obj.Quantita} $");
+                Console.WriteLine($" [{obj.Oggetto.Tipo}] {obj.Oggetto.Nome} | {obj.Oggetto.Valore} | x{obj.Quantita}");
 
-            Console.WriteLine($" Totale: {ValoreTotale()} $");  // una sola volta
+            Console.WriteLine($" Totale: {ValoreTotale()} $");
         }
 
 
-        // USA OGGETTO (SINGOLO)
+        // ─────────────────────────────────────────────────────────────
+        // USA OGGETTO — usa un singolo oggetto e lo rimuove
+        // Guard clause: target non può essere null.
+        // Trova() lancia OggettoNonTrovatoException se l'oggetto non c'è —
+        // l'eccezione si propaga al chiamante senza catch qui.
+        // ─────────────────────────────────────────────────────────────
         public void UsaOggetto(string nome, Personaggio target)
         {
             ArgumentNullException.ThrowIfNull(target);
-            IOggetto oggetto = Trova(nome);
+            IOggetto oggetto = Trova(nome);   // lancia OggettoNonTrovatoException se assente
             oggetto.Usa(target);
             Rimuovi(nome, 1);
         }
 
 
-
-
-
         // ─────────────────────────────────────────────────────────────
         // USA TUTTO
-        // PROBLEMA: non si può rimuovere da un Dictionary mentre lo si
-        // itera con foreach — lancerebbe InvalidOperationException.
-        //
-        // SOLUZIONE in due passaggi:
-        //   1. Primo foreach: usa gli oggetti, raccoglie i nomi da rimuovere
-        //   2. Secondo foreach: rimuove le entry dopo aver finito di iterare
+        // Non si può rimuovere da un Dictionary mentre lo si itera.
+        // Soluzione: raccogliamo prima i nomi da rimuovere, poi rimuoviamo.
         // ─────────────────────────────────────────────────────────────
         public void UsaTutto(string tipo, Personaggio bersaglio)
         {
-            var daRimuovere = new List<string>();  // raccoglie i nomi, non gli oggetti
+            var daRimuovere = new List<string>();
 
             foreach (var entry in _oggetti.Values)
             {
@@ -183,14 +171,12 @@ namespace GiocoRPG.Oggetti
             }
 
             foreach (var nome in daRimuovere)
-                _oggetti.Remove(nome);  // sicuro: il primo foreach è finito
+                _oggetti.Remove(nome);
         }
 
 
         // ─────────────────────────────────────────────────────────────
-        // ISALVABILE — serializzazione JSON-like
-        // Costruisce manualmente la stringa con un foreach.
-        // string.Join aggiunge "," tra ogni elemento senza virgola finale.
+        // ISALVABILE
         // ─────────────────────────────────────────────────────────────
         public string Serializza()
         {
@@ -209,11 +195,7 @@ namespace GiocoRPG.Oggetti
         // ─────────────────────────────────────────────────────────────
         // IENUMERABLE — necessario per foreach e LINQ sull'inventario
         // "yield return" produce un elemento alla volta senza creare
-        // una lista intermedia — più efficiente di ToList().GetEnumerator().
-        //
-        // Due metodi obbligatori:
-        //   1. IEnumerator<IOggetto>              → versione generica (C# 2+)
-        //   2. System.Collections.IEnumerator     → versione legacy (pre-generics)
+        // una lista intermedia.
         // ─────────────────────────────────────────────────────────────
         public IEnumerator<IOggetto> GetEnumerator()
         {

@@ -21,5 +21,5 @@ global using GiocoRPG.Factory;        // PersonaggioFactory
 global using GiocoRPG.Interfacce;     // IAttacabile, ICurabile, IOggetto, IPremiabile, ISalvabile
 global using GiocoRPG.Salvataggio;    // SistemaSalvataggio
 global using GiocoRPG.Collezioni;     // CodaSpawn
-global using GiocoRPG.Exception;      // Eccezioni personalizzate 
-global using GiocoRPG.Gestione;       //Gestione manuale delle risorse
+global using GiocoRPG.Exception;      // VitaInvalidaException, InventarioPienoException, OggettoNonTrovatoException
+global using GiocoRPG.Gestione;       // GestionePartita, FileSalvataggio
