@@ -23,6 +23,7 @@ namespace GiocoRPG
 {
     class Program
     {
+        Console.WriteLine("Ciao");
         // ─────────────────────────────────────────────────────────────
         // MAIN PRECEDENTE (Giorno 5) — conservato come riferimento
         // ─────────────────────────────────────────────────────────────
