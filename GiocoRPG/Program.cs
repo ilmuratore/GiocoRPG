@@ -18,7 +18,7 @@ namespace GiocoRPG
         static void Main(string[] args)
         {
             Console.WriteLine("=== GIOCO RPG — Giorno 7 ===");
-
+            Console.WriteLine("cambio nome");
 
             // ─────────────────────────────────────────────────────────
             // 1. TRY/CATCH BASE
